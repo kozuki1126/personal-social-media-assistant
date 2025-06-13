@@ -2,17 +2,17 @@ import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { isDev } from '../shared/utils/environment';
-import { DatabaseService } from './services/DatabaseService';
-import { SecurityService } from './services/SecurityService';
+import { DatabaseService, SecurityService, SettingsService, ServiceContainer, SERVICE_NAMES } from './services';
 
 class ElectronApp {
   private mainWindow: BrowserWindow | null = null;
-  private databaseService: DatabaseService;
-  private securityService: SecurityService;
+  private serviceContainer: ServiceContainer;
+  private databaseService!: DatabaseService;
+  private securityService!: SecurityService;
+  private settingsService!: SettingsService;
 
   constructor() {
-    this.databaseService = new DatabaseService();
-    this.securityService = new SecurityService();
+    this.serviceContainer = ServiceContainer.getInstance();
     this.initializeApp();
   }
 
@@ -62,14 +62,38 @@ class ElectronApp {
   }
 
   private async initializeServices(): Promise<void> {
+    console.log('Initializing services...');
+    
+    // Initialize database service
+    this.databaseService = new DatabaseService();
     await this.databaseService.initialize();
+    this.serviceContainer.register(SERVICE_NAMES.DATABASE, this.databaseService);
+    
+    // Initialize security service
+    this.securityService = new SecurityService();
     this.securityService.initialize();
+    this.serviceContainer.register(SERVICE_NAMES.SECURITY, this.securityService);
+    
+    // Initialize settings service
+    this.settingsService = new SettingsService(this.databaseService, this.securityService);
+    this.serviceContainer.register(SERVICE_NAMES.SETTINGS, this.settingsService);
+    
+    console.log('All services initialized successfully');
   }
 
   private async createWindow(): Promise<void> {
+    // Get window settings
+    const windowWidth = await this.settingsService.get('window_width', 1200);
+    const windowHeight = await this.settingsService.get('window_height', 800);
+    const windowX = await this.settingsService.get('window_x');
+    const windowY = await this.settingsService.get('window_y');
+    const isMaximized = await this.settingsService.get('window_maximized', false);
+
     this.mainWindow = new BrowserWindow({
-      width: 1200,
-      height: 800,
+      width: windowWidth,
+      height: windowHeight,
+      x: windowX,
+      y: windowY,
       minWidth: 800,
       minHeight: 600,
       show: false, // Don't show until ready
@@ -84,6 +108,11 @@ class ElectronApp {
       icon: process.platform === 'linux' ? path.join(__dirname, '../../assets/icon.png') : undefined,
     });
 
+    // Restore window state
+    if (isMaximized) {
+      this.mainWindow.maximize();
+    }
+
     // Load the app
     if (isDev) {
       this.mainWindow.loadURL('http://localhost:3000');
@@ -97,9 +126,34 @@ class ElectronApp {
       this.mainWindow?.show();
     });
 
+    // Save window state on changes
+    this.mainWindow.on('resize', () => this.saveWindowState());
+    this.mainWindow.on('move', () => this.saveWindowState());
+    this.mainWindow.on('maximize', () => this.saveWindowState());
+    this.mainWindow.on('unmaximize', () => this.saveWindowState());
+
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
     });
+  }
+
+  private async saveWindowState(): Promise<void> {
+    if (!this.mainWindow || !this.settingsService) return;
+
+    try {
+      const bounds = this.mainWindow.getBounds();
+      const isMaximized = this.mainWindow.isMaximized();
+
+      await Promise.all([
+        this.settingsService.set('window_width', bounds.width),
+        this.settingsService.set('window_height', bounds.height),
+        this.settingsService.set('window_x', bounds.x),
+        this.settingsService.set('window_y', bounds.y),
+        this.settingsService.set('window_maximized', isMaximized),
+      ]);
+    } catch (error) {
+      console.error('Failed to save window state:', error);
+    }
   }
 
   private setupMenu(): void {
@@ -191,6 +245,47 @@ class ElectronApp {
       return this.databaseService.query(query, params);
     });
 
+    ipcMain.handle('db:stats', async () => {
+      return this.databaseService.getStats();
+    });
+
+    ipcMain.handle('db:healthCheck', async () => {
+      return this.databaseService.healthCheck();
+    });
+
+    // Settings operations
+    ipcMain.handle('settings:get', async (event, key: string, defaultValue?: any) => {
+      return this.settingsService.get(key, defaultValue);
+    });
+
+    ipcMain.handle('settings:set', async (event, key: string, value: any, encrypt?: boolean) => {
+      return this.settingsService.set(key, value, encrypt);
+    });
+
+    ipcMain.handle('settings:delete', async (event, key: string) => {
+      return this.settingsService.delete(key);
+    });
+
+    ipcMain.handle('settings:getAppSettings', async () => {
+      return this.settingsService.getAppSettings();
+    });
+
+    ipcMain.handle('settings:updateAppSettings', async (event, settings: any) => {
+      return this.settingsService.updateAppSettings(settings);
+    });
+
+    ipcMain.handle('settings:createBackup', async () => {
+      return this.settingsService.createBackup();
+    });
+
+    ipcMain.handle('settings:restoreFromBackup', async (event, backupData: string) => {
+      return this.settingsService.restoreFromBackup(backupData);
+    });
+
+    ipcMain.handle('settings:reset', async () => {
+      return this.settingsService.reset();
+    });
+
     // Security operations
     ipcMain.handle('security:encrypt', async (event, data: string) => {
       return this.securityService.encrypt(data);
@@ -200,15 +295,44 @@ class ElectronApp {
       return this.securityService.decrypt(encryptedData);
     });
 
+    ipcMain.handle('security:hash', async (event, data: string, salt?: string) => {
+      return this.securityService.hash(data, salt);
+    });
+
+    ipcMain.handle('security:verifyHash', async (event, data: string, hash: string, salt: string) => {
+      return this.securityService.verifyHash(data, hash, salt);
+    });
+
     // Error handling
     ipcMain.handle('app:reportError', (event, error: any) => {
-      console.error('Renderer process error:', error);
+      const sanitizedError = this.securityService.sanitizeForLogging(error);
+      console.error('Renderer process error:', sanitizedError);
+    });
+
+    // System info
+    ipcMain.handle('system:getInfo', () => {
+      return {
+        platform: process.platform,
+        arch: process.arch,
+        version: process.version,
+        electronVersion: process.versions.electron,
+        chromeVersion: process.versions.chrome,
+      };
     });
   }
 
   private async cleanup(): Promise<void> {
     try {
+      console.log('Cleaning up services...');
+      
+      // Save final window state
+      await this.saveWindowState();
+      
+      // Close services
       await this.databaseService.close();
+      this.serviceContainer.clear();
+      
+      console.log('Cleanup completed successfully');
     } catch (error) {
       console.error('Error during cleanup:', error);
     }
