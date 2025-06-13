@@ -2,6 +2,8 @@
 export { DatabaseService } from './DatabaseService';
 export { SecurityService } from './SecurityService';
 export { SettingsService } from './SettingsService';
+export { ThemeService } from './ThemeService';
+export { DraftService } from './DraftService';
 
 // Service factory for dependency injection
 export class ServiceContainer {
@@ -43,4 +45,6 @@ export const SERVICE_NAMES = {
   DATABASE: 'database',
   SECURITY: 'security',
   SETTINGS: 'settings',
+  THEME: 'theme',
+  DRAFT: 'draft',
 } as const;
