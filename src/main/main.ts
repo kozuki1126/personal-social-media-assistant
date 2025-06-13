@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { isDev } from '../shared/utils/environment';
-import { DatabaseService, SecurityService, SettingsService, ServiceContainer, SERVICE_NAMES } from './services';
+import { DatabaseService, SecurityService, SettingsService, ThemeService, DraftService, ServiceContainer, SERVICE_NAMES } from './services';
 
 class ElectronApp {
   private mainWindow: BrowserWindow | null = null;
@@ -10,6 +10,8 @@ class ElectronApp {
   private databaseService!: DatabaseService;
   private securityService!: SecurityService;
   private settingsService!: SettingsService;
+  private themeService!: ThemeService;
+  private draftService!: DraftService;
 
   constructor() {
     this.serviceContainer = ServiceContainer.getInstance();
@@ -77,6 +79,14 @@ class ElectronApp {
     // Initialize settings service
     this.settingsService = new SettingsService(this.databaseService, this.securityService);
     this.serviceContainer.register(SERVICE_NAMES.SETTINGS, this.settingsService);
+    
+    // Initialize theme service
+    this.themeService = new ThemeService(this.databaseService);
+    this.serviceContainer.register(SERVICE_NAMES.THEME, this.themeService);
+    
+    // Initialize draft service
+    this.draftService = new DraftService(this.databaseService);
+    this.serviceContainer.register(SERVICE_NAMES.DRAFT, this.draftService);
     
     console.log('All services initialized successfully');
   }
@@ -284,6 +294,88 @@ class ElectronApp {
 
     ipcMain.handle('settings:reset', async () => {
       return this.settingsService.reset();
+    });
+
+    // Theme operations
+    ipcMain.handle('themes:getAll', async (event, includeInactive?: boolean) => {
+      return this.themeService.getAll(includeInactive);
+    });
+
+    ipcMain.handle('themes:getById', async (event, id: number) => {
+      return this.themeService.getById(id);
+    });
+
+    ipcMain.handle('themes:create', async (event, data: any) => {
+      return this.themeService.create(data);
+    });
+
+    ipcMain.handle('themes:update', async (event, id: number, data: any) => {
+      return this.themeService.update(id, data);
+    });
+
+    ipcMain.handle('themes:delete', async (event, id: number, soft?: boolean) => {
+      return this.themeService.delete(id, soft);
+    });
+
+    ipcMain.handle('themes:search', async (event, query: string) => {
+      return this.themeService.search(query);
+    });
+
+    ipcMain.handle('themes:getForCollection', async () => {
+      return this.themeService.getThemesForCollection();
+    });
+
+    ipcMain.handle('themes:getStatistics', async () => {
+      return this.themeService.getStatistics();
+    });
+
+    ipcMain.handle('themes:nameExists', async (event, name: string, excludeId?: number) => {
+      return this.themeService.nameExists(name, excludeId);
+    });
+
+    // Draft operations
+    ipcMain.handle('drafts:getAll', async (event, filters?: any, sort?: any, pagination?: any) => {
+      return this.draftService.getAll(filters, sort, pagination);
+    });
+
+    ipcMain.handle('drafts:getById', async (event, id: number) => {
+      return this.draftService.getById(id);
+    });
+
+    ipcMain.handle('drafts:create', async (event, data: any) => {
+      return this.draftService.create(data);
+    });
+
+    ipcMain.handle('drafts:update', async (event, id: number, data: any) => {
+      return this.draftService.update(id, data);
+    });
+
+    ipcMain.handle('drafts:delete', async (event, id: number) => {
+      return this.draftService.delete(id);
+    });
+
+    ipcMain.handle('drafts:duplicate', async (event, id: number) => {
+      return this.draftService.duplicate(id);
+    });
+
+    ipcMain.handle('drafts:getScheduled', async (event, date?: string) => {
+      return this.draftService.getScheduled(date);
+    });
+
+    ipcMain.handle('drafts:getByCategory', async (event, category: string) => {
+      return this.draftService.getByCategory(category);
+    });
+
+    ipcMain.handle('drafts:getCategories', async () => {
+      return this.draftService.getCategories();
+    });
+
+    ipcMain.handle('drafts:search', async (event, query: string) => {
+      return this.draftService.search(query);
+    });
+
+    ipcMain.handle('drafts:getStatistics', async () => {
+      return this.draftService.getStatistics();
     });
 
     // Security operations
