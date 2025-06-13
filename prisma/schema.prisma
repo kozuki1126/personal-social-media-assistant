@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Theme {
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  description      String?
+  keywords         String? // JSON array of keywords
+  updateFrequency  String? // "daily" | "weekly"
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  collectedArticles CollectedArticle[]
+
+  @@map("themes")
+}
+
+model CollectedArticle {
+  id              Int               @id @default(autoincrement())
+  themeId         Int
+  title           String
+  content         String?
+  summary         String?
+  sourceUrl       String?
+  sourceName      String?
+  publishedAt     DateTime?
+  relevanceScore  Float             @default(0.0)
+  isProcessed     Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  theme           Theme             @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  generatedSamples GeneratedSample[]
+
+  @@index([themeId])
+  @@index([publishedAt])
+  @@map("collected_articles")
+}
+
+model GeneratedSample {
+  id             Int              @id @default(autoincrement())
+  articleId      Int
+  content        String
+  tone           String // "casual" | "formal" | "explanatory"
+  characterCount Int
+  hashtags       String? // JSON array of hashtags
+  isFavorite     Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  article        CollectedArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("generated_samples")
+}
+
+model Draft {
+  id             Int      @id @default(autoincrement())
+  title          String?
+  content        String
+  hashtags       String? // JSON array of hashtags
+  mediaUrls      String? // JSON array of media URLs
+  category       String?
+  scheduledDate  String? // DATE format: YYYY-MM-DD
+  scheduledTime  String? // TIME format: HH:MM
+  reminderMinutes Int     @default(10)
+  isTemplate     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([scheduledDate])
+  @@map("drafts")
+}
+
+model Template {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  content    String
+  category   String?
+  hashtags   String? // JSON array of hashtags
+  usageCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("templates")
+}
+
+model PostHistory {
+  id               Int      @id @default(autoincrement())
+  content          String
+  hashtags         String? // JSON array of hashtags
+  mediaUrls        String? // JSON array of media URLs
+  postedAt         DateTime
+  likesCount       Int      @default(0)
+  retweetsCount    Int      @default(0)
+  repliesCount     Int      @default(0)
+  impressionsCount Int      @default(0)
+  lastUpdated      DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@index([postedAt])
+  @@map("post_history")
+}
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String?
+  isEncrypted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model HashtagHistory {
+  id         Int      @id @default(autoincrement())
+  hashtag    String
+  usageCount Int      @default(1)
+  lastUsed   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([hashtag])
+  @@map("hashtag_history")
+}
