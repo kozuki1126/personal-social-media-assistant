@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { AppSettings } from '../shared/types/app';
+import { AppSettings, ThemeFormData, DraftFormData, SearchFilters, SortOptions } from '../shared/types/app';
 
 // Define the API that will be exposed to the renderer process
 const electronAPI = {
@@ -48,6 +48,54 @@ const electronAPI = {
       ipcRenderer.invoke('settings:restoreFromBackup', backupData),
     reset: (): Promise<void> => 
       ipcRenderer.invoke('settings:reset'),
+  },
+
+  // Theme operations
+  themes: {
+    getAll: (includeInactive?: boolean): Promise<any[]> => 
+      ipcRenderer.invoke('themes:getAll', includeInactive),
+    getById: (id: number): Promise<any> => 
+      ipcRenderer.invoke('themes:getById', id),
+    create: (data: ThemeFormData): Promise<any> => 
+      ipcRenderer.invoke('themes:create', data),
+    update: (id: number, data: Partial<ThemeFormData>): Promise<any> => 
+      ipcRenderer.invoke('themes:update', id, data),
+    delete: (id: number, soft?: boolean): Promise<void> => 
+      ipcRenderer.invoke('themes:delete', id, soft),
+    search: (query: string): Promise<any[]> => 
+      ipcRenderer.invoke('themes:search', query),
+    getForCollection: (): Promise<any[]> => 
+      ipcRenderer.invoke('themes:getForCollection'),
+    getStatistics: (): Promise<{ total: number; active: number; inactive: number; withArticles: number }> => 
+      ipcRenderer.invoke('themes:getStatistics'),
+    nameExists: (name: string, excludeId?: number): Promise<boolean> => 
+      ipcRenderer.invoke('themes:nameExists', name, excludeId),
+  },
+
+  // Draft operations
+  drafts: {
+    getAll: (filters?: SearchFilters, sort?: SortOptions, pagination?: { page: number; limit: number }): Promise<any> => 
+      ipcRenderer.invoke('drafts:getAll', filters, sort, pagination),
+    getById: (id: number): Promise<any> => 
+      ipcRenderer.invoke('drafts:getById', id),
+    create: (data: DraftFormData): Promise<any> => 
+      ipcRenderer.invoke('drafts:create', data),
+    update: (id: number, data: Partial<DraftFormData>): Promise<any> => 
+      ipcRenderer.invoke('drafts:update', id, data),
+    delete: (id: number): Promise<void> => 
+      ipcRenderer.invoke('drafts:delete', id),
+    duplicate: (id: number): Promise<any> => 
+      ipcRenderer.invoke('drafts:duplicate', id),
+    getScheduled: (date?: string): Promise<any[]> => 
+      ipcRenderer.invoke('drafts:getScheduled', date),
+    getByCategory: (category: string): Promise<any[]> => 
+      ipcRenderer.invoke('drafts:getByCategory', category),
+    getCategories: (): Promise<string[]> => 
+      ipcRenderer.invoke('drafts:getCategories'),
+    search: (query: string): Promise<any[]> => 
+      ipcRenderer.invoke('drafts:search', query),
+    getStatistics: (): Promise<{ total: number; scheduled: number; templates: number; categories: number }> => 
+      ipcRenderer.invoke('drafts:getStatistics'),
   },
 
   // Security operations
