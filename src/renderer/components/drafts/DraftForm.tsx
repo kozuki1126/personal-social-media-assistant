@@ -345,7 +345,7 @@ export const DraftForm: React.FC<DraftFormProps> = ({
             loading={isLoading}
             disabled={isOverLimit}
           >
-            {draft ? '更新' : '作成'}
+            {draft ? '更新' : '保存'}
           </Button>
         </div>
       </form>
