@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Draft, useDraftStore } from '../../stores/draftStore';
+import { useDraftStore, Draft } from '../../stores/draftStore';
 import { DraftCard } from './DraftCard';
 import { DraftForm } from './DraftForm';
 import { Button } from '../ui/Button';
@@ -9,8 +9,7 @@ import {
   PlusIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  ArrowsUpDownIcon,
-  DocumentTextIcon
+  ArrowsUpDownIcon
 } from '@heroicons/react/24/outline';
 
 export const DraftList: React.FC = () => {
@@ -34,12 +33,23 @@ export const DraftList: React.FC = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
-  const [deletingDraftId, setDeletingDraftId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    draft: Draft | null;
+  }>({ isOpen: false, draft: null });
 
   // Load drafts on component mount
   useEffect(() => {
     loadDrafts();
   }, [loadDrafts]);
+
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => clearError();
+  }, [clearError]);
+
+  const filteredDrafts = getFilteredDrafts();
+  const categories = getCategories();
 
   const handleCreateDraft = () => {
     setEditingDraft(null);
@@ -51,28 +61,27 @@ export const DraftList: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const handleDeleteDraft = (id: number) => {
-    setDeletingDraftId(id);
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    setEditingDraft(null);
+  };
+
+  const handleDeleteDraft = (draft: Draft) => {
+    setDeleteConfirm({ isOpen: true, draft });
   };
 
   const confirmDelete = async () => {
-    if (deletingDraftId) {
-      await deleteDraft(deletingDraftId);
-      setDeletingDraftId(null);
+    if (deleteConfirm.draft) {
+      const success = await deleteDraft(deleteConfirm.draft.id);
+      if (success) {
+        setDeleteConfirm({ isOpen: false, draft: null });
+      }
     }
   };
 
   const handleDuplicateDraft = async (id: number) => {
     await duplicateDraft(id);
   };
-
-  const handleFormSuccess = () => {
-    setIsFormOpen(false);
-    setEditingDraft(null);
-  };
-
-  const filteredDrafts = getFilteredDrafts();
-  const categories = getCategories();
 
   const sortOptions = [
     { value: 'newest', label: '新しい順' },
@@ -86,95 +95,56 @@ export const DraftList: React.FC = () => {
     ...categories.map(cat => ({ value: cat, label: cat })),
   ];
 
-  const getDraftStats = () => {
-    const total = drafts.length;
-    const templates = drafts.filter(d => d.isTemplate).length;
-    const scheduled = drafts.filter(d => d.scheduledDate && d.scheduledTime).length;
-    return { total, templates, scheduled };
-  };
-
-  const stats = getDraftStats();
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
-          <h3 className="text-lg font-medium text-red-900 mb-2">エラーが発生しました</h3>
-          <p className="text-red-700 mb-4">{error}</p>
-          <div className="space-x-3">
-            <Button onClick={loadDrafts} variant="outline">
-              再試行
-            </Button>
-            <Button onClick={clearError} variant="ghost">
-              閉じる
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">下書き管理</h1>
-          <p className="text-gray-600 mt-1">投稿の下書きを作成・管理します</p>
+          <p className="text-gray-600 mt-1">
+            投稿の下書きを作成・編集・管理できます
+          </p>
         </div>
-        <Button onClick={handleCreateDraft} className="flex items-center space-x-2">
-          <PlusIcon className="h-5 w-5" />
-          <span>新しい下書き</span>
+        <Button
+          onClick={handleCreateDraft}
+          className="flex items-center"
+        >
+          <PlusIcon className="h-5 w-5 mr-2" />
+          新しい下書き
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-blue-600" />
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">総下書き数</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <h3 className="text-sm font-medium text-red-800">エラーが発生しました</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearError}
+                  className="bg-red-50 text-red-800 border-red-300 hover:bg-red-100"
+                >
+                  閉じる
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-purple-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">テンプレート</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.templates}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-green-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">予約投稿</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.scheduled}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <DocumentTextIcon className="h-8 w-8 text-orange-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">表示中</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredDrafts.length}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg border p-4">
-        <div className="flex flex-col md:flex-row gap-4">
+      {/* Search and Filter Bar */}
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Search */}
-          <div className="flex-1">
+          <div className="md:col-span-2">
             <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 text-gray-400 transform -translate-y-1/2" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
                 type="text"
                 placeholder="下書きを検索..."
@@ -186,55 +156,59 @@ export const DraftList: React.FC = () => {
           </div>
 
           {/* Category Filter */}
-          <div className="w-full md:w-48">
+          <div>
             <Select
               value={categoryFilter}
               onChange={(e) => filterByCategory(e.target.value)}
               options={categoryOptions}
-              className="w-full"
+              icon={<FunnelIcon className="h-4 w-4" />}
             />
           </div>
 
           {/* Sort */}
-          <div className="w-full md:w-32">
+          <div>
             <Select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               options={sortOptions}
-              className="w-full"
+              icon={<ArrowsUpDownIcon className="h-4 w-4" />}
             />
           </div>
         </div>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="text-2xl font-bold text-blue-600">{drafts.length}</div>
+          <div className="text-sm text-gray-600">総下書き数</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="text-2xl font-bold text-green-600">
+            {drafts.filter(d => d.isTemplate).length}
+          </div>
+          <div className="text-sm text-gray-600">テンプレート数</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="text-2xl font-bold text-orange-600">
+            {drafts.filter(d => d.scheduledDate).length}
+          </div>
+          <div className="text-sm text-gray-600">予約投稿数</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg border border-gray-200">
+          <div className="text-2xl font-bold text-purple-600">{categories.length}</div>
+          <div className="text-sm text-gray-600">カテゴリ数</div>
+        </div>
+      </div>
+
       {/* Draft List */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">読み込み中...</span>
         </div>
-      ) : filteredDrafts.length === 0 ? (
-        <div className="text-center py-12">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">
-            {searchQuery || categoryFilter ? '該当する下書きが見つかりません' : '下書きがありません'}
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {searchQuery || categoryFilter 
-              ? '検索条件を変更してもう一度お試しください。'
-              : '最初の下書きを作成しましょう。'
-            }
-          </p>
-          {!searchQuery && !categoryFilter && (
-            <div className="mt-6">
-              <Button onClick={handleCreateDraft}>
-                <PlusIcon className="h-4 w-4 mr-2" />
-                新しい下書きを作成
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      ) : filteredDrafts.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredDrafts.map((draft) => (
             <DraftCard
               key={draft.id}
@@ -245,9 +219,28 @@ export const DraftList: React.FC = () => {
             />
           ))}
         </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="text-gray-500 text-lg mb-2">
+            {searchQuery || categoryFilter
+              ? '検索条件に一致する下書きが見つかりません'
+              : '下書きがまだありません'}
+          </div>
+          <div className="text-gray-400 text-sm mb-4">
+            {searchQuery || categoryFilter
+              ? '検索条件を変更して再度お試しください'
+              : '最初の下書きを作成してみましょう'}
+          </div>
+          {!searchQuery && !categoryFilter && (
+            <Button onClick={handleCreateDraft}>
+              <PlusIcon className="h-5 w-5 mr-2" />
+              下書きを作成
+            </Button>
+          )}
+        </div>
       )}
 
-      {/* Draft Form Modal */}
+      {/* Form Modal */}
       <DraftForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
@@ -257,13 +250,18 @@ export const DraftList: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
-        isOpen={deletingDraftId !== null}
-        onClose={() => setDeletingDraftId(null)}
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, draft: null })}
         onConfirm={confirmDelete}
         title="下書きを削除"
-        message="この下書きを削除してもよろしいですか？この操作は取り消せません。"
+        message={
+          deleteConfirm.draft
+            ? `「${deleteConfirm.draft.title || '無題の下書き'}」を削除しますか？この操作は取り消せません。`
+            : ''
+        }
         confirmText="削除"
         confirmVariant="danger"
+        isLoading={isLoading}
       />
     </div>
   );
