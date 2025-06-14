@@ -3,6 +3,8 @@ import { Routes, Route } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAppStore } from '../../stores/appStore';
+import { ThemeList } from '../themes';
+import { DraftList } from '../drafts';
 
 // Placeholder components for routes
 const Dashboard = () => (
@@ -62,10 +64,10 @@ export const Layout: React.FC = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/themes" element={<PlaceholderPage title="テーマ管理" />} />
+            <Route path="/themes" element={<ThemeList />} />
             <Route path="/articles" element={<PlaceholderPage title="記事収集" />} />
             <Route path="/samples" element={<PlaceholderPage title="サンプル生成" />} />
-            <Route path="/drafts" element={<PlaceholderPage title="下書き管理" />} />
+            <Route path="/drafts" element={<DraftList />} />
             <Route path="/templates" element={<PlaceholderPage title="テンプレート" />} />
             <Route path="/calendar" element={<PlaceholderPage title="カレンダー" />} />
             <Route path="/analytics" element={<PlaceholderPage title="分析" />} />
